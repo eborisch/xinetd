@@ -36,6 +36,16 @@
 
 #define NET_BUFFER 1500
 
+#define HAVE_SPLICE 1
+
+#ifdef HAVE_SPLICE
+struct so_splice {
+   int sp_fd;
+   off_t sp_max;
+   struct timeval sp_idle;
+};
+#endif
+
 static int RedirServerFd = -1;
 
 /* Theoretically, this gets invoked when the remote side is no
@@ -69,6 +79,10 @@ void redir_handler( struct server *serp )
    struct timeval *timep = NULL;
    const char *func = "redir_handler";
    union xsockaddr serveraddr ;
+#ifdef HAVE_SPLICE
+   struct so_splice SpliceIn, SpliceOut;
+   socklen_t optlen = sizeof(bytes_in);
+#endif
 
    if( signal(SIGPIPE, redir_sigpipe) == SIG_ERR ) 
       msg(LOG_ERR, func, "unable to setup signal handler");
@@ -146,13 +160,73 @@ void redir_handler( struct server *serp )
       FD_SET(RedirDescrip, &msfd);
       FD_SET(RedirServerFd, &msfd);
 
+#ifdef HAVE_SPLICE
+      memset(&SpliceOut, 0, sizeof(SpliceOut));
+      memset(&SpliceIn, 0, sizeof(SpliceIn));
+
+      SpliceOut.sp_fd = RedirDescrip;
+      SpliceIn.sp_fd = RedirServerFd;
+
+      /* Splice both directions together */
+      if (setsockopt(RedirServerFd, SOL_SOCKET, SO_SPLICE,
+                     (void *) &SpliceOut, sizeof(SpliceOut)) < 0 ) {
+         msg(LOG_ERR, func, "can't splice socket to host %s: %m",
+            xaddrname( &serveraddr ) );
+         exit(0);
+      }
+
+      if (setsockopt(RedirDescrip, SOL_SOCKET, SO_SPLICE,
+                     (void *) &SpliceIn, sizeof(SpliceIn)) < 0 ) {
+         msg(LOG_ERR, func, "can't splice socket from host %s: %m",
+            xaddrname( &serveraddr ) );
+         exit(0);
+      }
+
+      /* Data transfer happens in-kernel; read-select to detect a close() */
+      memcpy(&rdfd, &msfd, sizeof(rdfd));
+      select(maxfd + 1, &rdfd, (fd_set *)0, (fd_set *)0, timep);
+
+      /* Make sure both directions are unspliced at this point. */
+      /* Appears we don't need this. Once one socket is closed, the splice
+       * ends.
+
+      SpliceOut.sp_max = -1;
+      SpliceIn.sp_max = -1;
+      if (setsockopt(RedirServerFd, SOL_SOCKET, SO_SPLICE,
+                     (void *) &SpliceOut, sizeof(SpliceOut)) < 0 ) {
+         msg(LOG_ERR, func, "can't unsplice socket to host %s: %m",
+            xaddrname( &serveraddr ) );
+      }
+
+      if (setsockopt(RedirDescrip, SOL_SOCKET, SO_SPLICE,
+                     (void *) &SpliceIn, sizeof(SpliceIn)) < 0 ) {
+         msg(LOG_ERR, func, "can't unsplice socket from host %s: %m",
+            xaddrname( &serveraddr ) );
+      }
+
+      */
+
+      /* Get bytes transferred */
+      if (getsockopt(RedirServerFd, SOL_SOCKET, SO_SPLICE,
+                     &bytes_in, &optlen) < 0 ||
+          optlen != sizeof(bytes_in) ) {
+         msg(LOG_ERR, func, "can't get bytes spliced to host %s: %m",
+            xaddrname( &serveraddr ) );
+      }
+      /* Get bytes transferred */
+      if (getsockopt(RedirDescrip, SOL_SOCKET, SO_SPLICE,
+                     &bytes_out, &optlen) < 0 ||
+          optlen != sizeof(bytes_out) ) {
+         msg(LOG_ERR, func, "can't get bytes spliced from host %s: %m",
+            xaddrname( &serveraddr ) );
+      }
+#else
       while(1) {
          memcpy(&rdfd, &msfd, sizeof(rdfd));
          if (select(maxfd + 1, &rdfd, (fd_set *)0, (fd_set *)0, timep) <= 0) {
             /* place for timeout code, currently does not time out */
             break;
          }
-
          if (FD_ISSET(RedirDescrip, &rdfd)) {
             do {
                num_read = read(RedirDescrip,
@@ -205,6 +279,7 @@ void redir_handler( struct server *serp )
             }
          }
       }
+#endif
 REDIROUT:
       if( M_IS_SET( SC_LOG_ON_SUCCESS(scp), LO_TRAFFIC ) ) {
          svc_logprint( SERVER_CONNSERVICE( serp ), "TRAFFIC",
