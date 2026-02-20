@@ -79,7 +79,7 @@ void redir_handler( struct server *serp )
    union xsockaddr serveraddr ;
 #ifdef HAVE_SPLICE
    struct so_splice SpliceTo;
-   socklen_t optlen = sizeof(bytes_in);
+   socklen_t optlen = 0;
 #endif
 
    if( signal(SIGPIPE, redir_sigpipe) == SIG_ERR ) 
@@ -183,6 +183,7 @@ void redir_handler( struct server *serp )
                xaddrname( &serveraddr ) );
          } else {
             /* Get bytes transferred */
+            optlen = sizeof(bytes_in);
             if (getsockopt(RedirServerFd, SOL_SOCKET, SO_SPLICE,
                            &bytes_in, &optlen) < 0 ||
                 optlen != sizeof(bytes_in) ) {
@@ -213,12 +214,14 @@ void redir_handler( struct server *serp )
       }
 
       /* Get bytes transferred */
+      optlen = sizeof(bytes_in);
       if (getsockopt(RedirServerFd, SOL_SOCKET, SO_SPLICE,
                      &bytes_in, &optlen) < 0 ||
           optlen != sizeof(bytes_in) ) {
          msg(LOG_ERR, func, "can't get bytes spliced to host %s: %m",
             xaddrname( &serveraddr ) );
       }
+      optlen = sizeof(bytes_out);
       if (getsockopt(RedirDescrip, SOL_SOCKET, SO_SPLICE,
                      &bytes_out, &optlen) < 0 ||
           optlen != sizeof(bytes_out) ) {
