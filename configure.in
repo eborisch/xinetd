@@ -1,6 +1,7 @@
-AC_INIT(xinetd/main.c)
+AC_INIT
+AC_CONFIG_SRCDIR([xinetd/main.c])
 
-AC_CANONICAL_SYSTEM
+AC_CANONICAL_TARGET
 
 AC_PROG_CC
 AC_PROG_INSTALL
@@ -74,66 +75,60 @@ XINETD_CHECK_TYPE(socklen_t, unsigned int)
 XINETD_CHECK_TYPE(rlim_t, long long)
 
 AC_CACHE_CHECK([for struct addrinfo], ac_cv_have_struct_addrinfo, [
-        AC_TRY_COMPILE(
-                [
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <sys/types.h>
 #include <sys/socket.h>
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-                ],
-                [ struct addrinfo s; s.ai_flags = AI_PASSIVE; ],
-                [ ac_cv_have_struct_addrinfo="yes" ],
-                [ ac_cv_have_struct_addrinfo="no" ]
-        )
+                ]], [[ struct addrinfo s; s.ai_flags = AI_PASSIVE; ]])],[ ac_cv_have_struct_addrinfo="yes" ],[ ac_cv_have_struct_addrinfo="no" 
+        ])
 ])
 if test "x$ac_cv_have_struct_addrinfo" = "xyes" ; then
         AC_DEFINE(HAVE_STRUCT_ADDRINFO)
 fi
 
 AC_CACHE_CHECK([for struct in6_addr], ac_cv_have_struct_in6_addr, [
-        AC_TRY_COMPILE(
-                [
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <sys/types.h>
 #include <netinet/in.h>
-                ],
-                [ struct in6_addr s; s.s6_addr[0] = 0; ],
-                [ ac_cv_have_struct_in6_addr="yes" ],
-                [ ac_cv_have_struct_in6_addr="no" ]
-        )
+                ]], [[ struct in6_addr s; s.s6_addr[0] = 0; ]])],[ ac_cv_have_struct_in6_addr="yes" ],[ ac_cv_have_struct_in6_addr="no" 
+        ])
 ])
 if test "x$ac_cv_have_struct_in6_addr" = "xyes" ; then
         AC_DEFINE(HAVE_STRUCT_IN6_ADDR)
 fi
 
 AC_CACHE_CHECK([for struct sockaddr_in6], ac_cv_have_struct_sockaddr_in6, [
-        AC_TRY_COMPILE(
-                [
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <sys/types.h>
 #include <netinet/in.h>
-                ],
-                [ struct sockaddr_in6 s; s.sin6_family = 0; ],
-                [ ac_cv_have_struct_sockaddr_in6="yes" ],
-                [ ac_cv_have_struct_sockaddr_in6="no" ]
-        )
+                ]], [[ struct sockaddr_in6 s; s.sin6_family = 0; ]])],[ ac_cv_have_struct_sockaddr_in6="yes" ],[ ac_cv_have_struct_sockaddr_in6="no" 
+        ])
 ])
 if test "x$ac_cv_have_struct_sockaddr_in6" = "xyes" ; then
         AC_DEFINE(HAVE_STRUCT_SOCKADDR_IN6)
 fi
 
 AC_CACHE_CHECK([for struct sockaddr_storage], ac_cv_have_struct_sockaddr_storage, [
-        AC_TRY_COMPILE(
-                [
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <sys/types.h>
 #include <sys/socket.h>
-                ],
-                [ struct sockaddr_storage s; ],
-                [ ac_cv_have_struct_sockaddr_storage="yes" ],
-                [ ac_cv_have_struct_sockaddr_storage="no" ]
-        )
+                ]], [[ struct sockaddr_storage s; ]])],[ ac_cv_have_struct_sockaddr_storage="yes" ],[ ac_cv_have_struct_sockaddr_storage="no" 
+        ])
 ])
 if test "x$ac_cv_have_struct_sockaddr_storage" = "xyes" ; then
         AC_DEFINE(HAVE_STRUCT_SOCKADDR_STORAGE)
+fi
+
+AC_CACHE_CHECK([for socket splice], ac_cv_have_socket_splice, [
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <sys/socket.h>
+                ]], [[ int so_splice = SO_SPLICE; ]])],[ ac_cv_have_socket_splice="yes" ],[ ac_cv_have_socket_splice="no" 
+        ])
+])
+if test "x$ac_cv_have_socket_splice" = "xyes" ; then
+        AC_DEFINE(HAVE_SPLICE)
 fi
 
 
@@ -282,8 +277,7 @@ AC_ARG_WITH(libwrap,
 			WRAPLIBS="$WRAPLIBS -lnsl" ])
 		OLDLIBS="$LIBS"
 		LIBS="$WRAPLIBS $LIBS"
-		AC_TRY_LINK([ int allow_severity; int deny_severity; ], 
-			[ hosts_access(); ], [], [ AC_MSG_ERROR(Could not find the $withval library.  You must first install tcp_wrappers.) ])
+		AC_LINK_IFELSE([AC_LANG_PROGRAM([[ int allow_severity; int deny_severity; ]], [[ hosts_access(); ]])],[],[ AC_MSG_ERROR(Could not find the $withval library.  You must first install tcp_wrappers.) ])
 		;;
 	esac ],
 	AC_MSG_RESULT(no)
@@ -338,7 +332,8 @@ mkdir -p libs/include
 mkdir -p libs/lib
 mkdir -p libs/man
 
-AC_CONFIG_HEADER(config.h)
-AC_OUTPUT(Makefile libs/src/misc/Makefile libs/src/pset/Makefile libs/src/sio/Makefile libs/src/str/Makefile libs/src/xlog/Makefile libs/src/portable/Makefile xinetd/Makefile)
+AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_FILES([Makefile libs/src/misc/Makefile libs/src/pset/Makefile libs/src/sio/Makefile libs/src/str/Makefile libs/src/xlog/Makefile libs/src/portable/Makefile xinetd/Makefile])
+AC_OUTPUT
 
 cp config.h libs/include
